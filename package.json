@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src --max-warnings=0"
+    "lint": "eslint src --max-warnings=0",
+    "build:style": "tailwind build public/assets/styles/vendors.css -o public/assets/styles/tailwind.css"
   },
   "dependencies": {
     "@dnd-kit/core": "^3.0.4",

@@ -22,6 +22,7 @@ import { Character } from 'components/Character';
 import { CharItem, CharacterList } from 'components';
 import { CHARACTER } from 'constants/endpoints';
 import { useDebounce } from 'hooks';
+import '../public/assets/styles/tailwind.css';
 
 export type Character = {
   index: number;
