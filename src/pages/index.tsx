@@ -1,11 +1,13 @@
 import { GetServerSideProps } from 'next';
 import { api } from 'services/api';
 import {
-  closestCenter,
+  defaultDropAnimation,
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   DragOverlay,
   DragStartEvent,
+  DropAnimation,
   MouseSensor,
   TouchSensor,
   useSensor,
@@ -13,14 +15,12 @@ import {
 } from '@dnd-kit/core';
 import {
   arrayMove,
-  rectSortingStrategy,
   SortableContext,
 } from '@dnd-kit/sortable';
 import { useEffect, useMemo, useState } from 'react';
 import { Character } from 'components/Character';
 import { CharItem, CharacterList } from 'components';
 import { CHARACTER } from 'constants/endpoints';
-
 import { useDebounce } from 'hooks';
 
 export type Character = {
@@ -41,19 +41,32 @@ export type Character = {
 }
 
 type CharactersProps = {
-  characters: {
-    results: Character[];
-  }
+  characters: Character[];
 }
+
+type CharItems = Record<string, Character[]>;
+
+type Chars = {
+  characters: Character[];
+  title: 'Personagens' | 'Favoritos'
+}
+
+const dropAnimation: DropAnimation = {
+  ...defaultDropAnimation,
+  dragSourceOpacity: 0.5,
+};
 
 const Characters = ({ characters }: CharactersProps) => {
   const [searchedName, setSearchedName] = useState('');
-  const [activeItem, setActiveItem] = useState<number | null>(0);
-  const [items, setItems] = useState(characters.results);
+  const [activeItem, setActiveItem] = useState<Character>({} as Character);
+  const [items, setItems] = useState<CharItems>({
+    A: [...characters.slice(0, 10)],
+    B: [],
+  });
 
-  const chars = useMemo(() => items.map((char) => ({
-    ...char,
-    id: String(char.id),
+  const chars: Chars[] = useMemo(() => Object.entries(items).map(([key, value]) => ({
+    characters: [...value],
+    title: key === 'A' ? 'Personagens' : 'Favoritos',
   })), [items]);
 
   const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor));
@@ -63,9 +76,20 @@ const Characters = ({ characters }: CharactersProps) => {
       const getCharsByName = async () => {
         try {
           const { data } = await api.get<{ results: Character[] }>(CHARACTER.BY_NAME(searchedName));
-          setItems(data.results);
+
+          const items = data.results.map((item) => ({
+            ...item,
+            id: String(item.id),
+          }));
+
+          setItems((prevState) => ({
+            ...prevState,
+            A: items,
+          }));
         } catch (error) {
-          setItems([]);
+          setItems({
+            A: [],
+          });
         }
       };
       getCharsByName();
@@ -74,32 +98,136 @@ const Characters = ({ characters }: CharactersProps) => {
 
   const handleSearchByName = useDebounce((value: string) => setSearchedName(value), 250);
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const oldIndexById = items.find((i) => String(i.id) === event.active.id);
-    setActiveItem(items.indexOf(oldIndexById!));
+  const findContainer = (id: string) => {
+    if (id in items) {
+      return id;
+    }
+
+    return Object.keys(items).find((key) => items[key].find((i) => i.id === id));
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    const parsedActive = active.id;
-    const parsedOver = over?.id;
+  const handleDragStart = ({ active }: DragStartEvent) => {
+    const activeContainer = findContainer(active.id);
 
-    if (parsedActive === parsedOver) return;
+    if (!activeContainer) return;
 
-    setItems((items) => {
-      const newIndexById = items.find(({ id }) => String(id) === parsedOver);
-      const oldIndexById = items.find(({ id }) => String(id) === parsedActive);
+    const activeItem = items[activeContainer].find(({ id }) => String(id) === active.id);
+    setActiveItem(activeItem!);
+  };
 
-      const oldIndex = items.indexOf(oldIndexById!);
-      const newIndex = items.indexOf(newIndexById!);
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    const activeContainer = findContainer(active.id);
+    const overId = over?.id;
+    const overContainer = findContainer(overId!);
 
-      return arrayMove(items, oldIndex, newIndex);
-    });
-    setActiveItem(null);
+    if (activeContainer && overContainer) {
+      const activeIndexById = items[activeContainer].find(({ id }) => String(id) === active.id);
+      const overIndexById = items[overContainer].find(({ id }) => String(id) === over?.id);
+
+      const activeIndex = items[activeContainer].indexOf(activeIndexById!);
+      const overIndex = items[activeContainer].indexOf(overIndexById!);
+
+      if (activeIndex !== overIndex) {
+        setItems((items) => ({
+          ...items,
+          [overContainer]: arrayMove(
+            items[overContainer],
+            activeIndex,
+            overIndex,
+          ),
+        }));
+      }
+    }
+  };
+
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
+    const overId = over?.id;
+    const activeContainer = findContainer(active.id);
+
+    if (!overId) {
+      const overContainer = Object.keys(items).find((key) => key !== activeContainer);
+      if (!overContainer || !activeContainer) return;
+
+      return setItems((prevState) => {
+        const activeItems = prevState[activeContainer];
+        const item = activeItems.find(({ id }) => id === active.id);
+
+        const itemsWithKeys = {
+          [activeContainer]: [
+            ...activeItems.filter(({ id }) => id !== active.id),
+          ],
+          [overContainer]: [
+            ...prevState[overContainer],
+            item!,
+          ],
+        };
+
+        const keysWithValues = {
+          A: itemsWithKeys.A,
+          B: itemsWithKeys.B,
+        };
+
+        return {
+          ...keysWithValues,
+        };
+      });
+    }
+
+    const overContainer = findContainer(overId);
+
+    if (!overContainer || !activeContainer) {
+      return;
+    }
+
+    if (activeContainer !== overContainer) {
+      setItems((items) => {
+        const activeItems = items[activeContainer];
+        const overItems = items[overContainer];
+
+        const activeIndexById = items[activeContainer]
+          .find(({ id }) => String(id) === active.id);
+        const overIndexById = items[overContainer]
+          .find(({ id }) => String(id) === overId);
+
+        const overIndex = overItems.indexOf(overIndexById!);
+        const activeIndex = activeItems.indexOf(activeIndexById!);
+
+        let newIndex: number;
+
+        if (overId in items) {
+          newIndex = overItems.length + 1;
+        } else {
+          const isBelowLastItem = over
+            && overIndex === overItems.length - 1
+            && active.rect.current.translated
+            && active.rect.current.translated.offsetTop
+              > over.rect.offsetTop + over.rect.height;
+
+          const modifier = isBelowLastItem ? 1 : 0;
+
+          newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
+        }
+
+        return {
+          ...items,
+          [activeContainer]: [
+            ...activeItems.filter(({ id }) => id !== active.id),
+          ],
+          [overContainer]: [
+            ...overItems.slice(0, newIndex),
+            activeItems[activeIndex],
+            ...overItems.slice(
+              newIndex,
+              overItems.length + 1,
+            ),
+          ],
+        };
+      });
+    }
   };
 
   const handleDragCancel = () => {
-    setActiveItem(null);
+    setActiveItem({} as Character);
   };
 
   return (
@@ -116,30 +244,28 @@ const Characters = ({ characters }: CharactersProps) => {
         <div className="flex gap-8">
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCenter}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
+            onDragOver={handleDragOver}
           >
-            <SortableContext items={chars} strategy={rectSortingStrategy}>
-              <CharacterList title="Personagens">
-                {chars.map((char, index) => (
-                  <Character
-                    {...char}
-                    key={char.id}
-                    index={index}
-                  />
-                ))}
-              </CharacterList>
-              <CharacterList title="Favoritos">
-                {[]}
-              </CharacterList>
-            </SortableContext>
-            <DragOverlay adjustScale>
+            {chars.map(({ characters, title }) => (
+              <SortableContext key={title} items={characters}>
+                <CharacterList id={title} title={title}>
+                  {characters.map((char, index) => (
+                    <Character
+                      {...char}
+                      key={char.id}
+                      index={index}
+                    />
+                  ))}
+                </CharacterList>
+              </SortableContext>
+            ))}
+            <DragOverlay dropAnimation={dropAnimation}>
               {activeItem && (
                 <CharItem
-                  {...items[activeItem]}
-                  index={items.indexOf(items[activeItem])}
+                  {...activeItem}
                 />
               )}
             </DragOverlay>
@@ -154,9 +280,11 @@ export const getServerSideProps: GetServerSideProps = async () => {
   const page = Math.floor(Math.random() * 25);
   const { data } = await api.get(CHARACTER.BY_PAGE(page));
 
+  const items = data.results.map((item: Character) => ({ ...item, id: String(item.id) }));
+
   return {
     props: {
-      characters: data,
+      characters: items,
     },
   };
 };

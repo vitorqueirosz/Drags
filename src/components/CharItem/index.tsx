@@ -7,7 +7,7 @@ export const CharItem = forwardRef<HTMLDivElement, CharItemProps>(({
   image, style, name, ...props
 }, ref) => (
   <div
-    className="flex items-center p-2 bg-indigo-500 rounded-lg w-72"
+    className="flex items-center p-2  bg-indigo-600  rounded-lg w-72"
     style={style}
     ref={ref}
     {...props}

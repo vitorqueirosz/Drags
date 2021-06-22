@@ -39,6 +39,7 @@
     "jsx-a11y/anchor-is-valid": "off",
     "react/no-unused-prop-types": "off",
    "import/no-unresolved": "off",
+   "consistent-return": "off",
    "no-shadow": "off",
     "import/extensions": [
           "error",
