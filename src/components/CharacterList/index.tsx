@@ -1,6 +1,6 @@
 type CharacterListProps = {
   children: React.ReactNode;
-  title: string;
+  title?: string;
   id: string;
   isDroppable?: boolean;
 }

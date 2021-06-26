@@ -1,7 +1,8 @@
 import { forwardRef, HTMLAttributes } from 'react';
-import { Character } from '../../pages';
+// import { Character } from '../../pages';
 
-type CharItemProps = Omit<Character, 'id'> & HTMLAttributes<HTMLDivElement>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CharItemProps = Omit<any, 'id'> & HTMLAttributes<HTMLDivElement>;
 
 export const CharItem = forwardRef<HTMLDivElement, CharItemProps>(({
   image, style, name, ...props
