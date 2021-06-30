@@ -24,11 +24,10 @@ export const defaultValues = {
   };
 
 const Interest = () => {
-  const {
- register, control, reset, watch, handleSubmit,
-} = useForm<InterestsFormModel>({
-      defaultValues,
-    });
+  const { register, control, watch } = useForm<InterestsFormModel>({
+    defaultValues,
+  });
+
   const {
  fields, swap, remove, append,
 } = useFieldArray<InterestType>({
@@ -41,11 +40,9 @@ const Interest = () => {
 
     const interestsWithProps = interestsFields.reduce(
       (items: InterestType[], item, index) => {
-        const interest = { ...fields[index] };
-
         const interestWithProps = {
           ...fields[index],
-          id: interest.fieldId,
+          id: String(index),
           name: item.name,
           priority: index,
           code: index,

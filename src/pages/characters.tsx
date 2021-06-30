@@ -1,6 +1,6 @@
+import { useEffect, useMemo, useState } from 'react';
 import { GetServerSideProps } from 'next';
 import { api } from 'services/api';
-import { useSession } from 'next-auth/client';
 import {
   defaultDropAnimation,
   DndContext,
@@ -18,12 +18,13 @@ import {
   arrayMove,
   SortableContext,
 } from '@dnd-kit/sortable';
-import { useEffect, useMemo, useState } from 'react';
 import { Character } from 'components/Character';
 import { CharItem, CharacterList } from 'components';
 import { CHARACTER } from 'constants/endpoints';
 import { useDebounce } from 'hooks';
 import { prisma } from 'services/prisma';
+import { useCreateFavorites } from 'useCases/favorites';
+import { getSession, useSession } from 'next-auth/client';
 
 export type Character = {
   index: number;
@@ -40,10 +41,13 @@ export type Character = {
     name: string;
   }
   episode: [];
+  charId: string;
+  priority: number;
 }
 
 type CharactersProps = {
   characters: Character[];
+  favorites: Character[];
 }
 
 type CharItems = Record<string, Character[]>;
@@ -58,12 +62,14 @@ const dropAnimation: DropAnimation = {
   dragSourceOpacity: 0.5,
 };
 
-const Characters = ({ characters }: CharactersProps) => {
+const Characters = ({ characters, favorites }: CharactersProps) => {
+  const handleCreateFavorites = useCreateFavorites();
+  const [session] = useSession();
   const [searchedName, setSearchedName] = useState('');
   const [activeItem, setActiveItem] = useState<Character>({} as Character);
   const [items, setItems] = useState<CharItems>({
     A: [...characters.slice(0, 10)],
-    B: [],
+    B: [...favorites],
   });
 
   const chars: Chars[] = useMemo(() => Object.entries(items).map(([key, value]) => ({
@@ -91,6 +97,7 @@ const Characters = ({ characters }: CharactersProps) => {
         } catch (error) {
           setItems({
             A: [],
+            B: [],
           });
         }
       };
@@ -108,6 +115,10 @@ const Characters = ({ characters }: CharactersProps) => {
     return Object.keys(items).find((key) => items[key].find((i) => i.id === id));
   };
 
+  const handleNewPriority = <T extends Record<string, unknown>>(items: T[]): T[] => {
+    return items.map((item, index) => ({ ...item, priority: index }));
+  };
+
   const handleDragStart = ({ active }: DragStartEvent) => {
     const activeContainer = findContainer(active.id);
 
@@ -123,20 +134,32 @@ const Characters = ({ characters }: CharactersProps) => {
     const overContainer = findContainer(overId!);
 
     if (activeContainer && overContainer) {
-      const activeIndexById = items[activeContainer].find(({ id }) => String(id) === active.id);
-      const overIndexById = items[overContainer].find(({ id }) => String(id) === over?.id);
+      const activeIndexById = items[activeContainer].find(
+        ({ id }) => String(id) === String(active.id));
+      const overIndexById = items[overContainer].find(
+        ({ id }) => String(id) === String(over?.id));
 
       const activeIndex = items[activeContainer].indexOf(activeIndexById!);
       const overIndex = items[activeContainer].indexOf(overIndexById!);
 
       if (activeIndex !== overIndex) {
+        const sortableItems = arrayMove(
+          items[overContainer],
+          activeIndex,
+          overIndex,
+        );
+
+        if (overContainer === 'B') {
+          const itemsWithNewPriority = handleNewPriority(sortableItems);
+          handleCreateFavorites({
+            characters: itemsWithNewPriority,
+            email: String(session?.user?.email),
+          });
+        }
+
         setItems((items) => ({
           ...items,
-          [overContainer]: arrayMove(
-            items[overContainer],
-            activeIndex,
-            overIndex,
-          ),
+          [overContainer]: sortableItems,
         }));
       }
     }
@@ -168,6 +191,13 @@ const Characters = ({ characters }: CharactersProps) => {
           A: itemsWithKeys.A,
           B: itemsWithKeys.B,
         };
+
+        const itemsWithNewPriority = handleNewPriority(keysWithValues.B);
+
+        handleCreateFavorites({
+          characters: itemsWithNewPriority,
+          email: String(session?.user?.email),
+        });
 
         return {
           ...keysWithValues,
@@ -210,8 +240,7 @@ const Characters = ({ characters }: CharactersProps) => {
           newIndex = overIndex >= 0 ? overIndex + modifier : overItems.length + 1;
         }
 
-        return {
-          ...items,
+        const sortableResult = {
           [activeContainer]: [
             ...activeItems.filter(({ id }) => id !== active.id),
           ],
@@ -223,6 +252,18 @@ const Characters = ({ characters }: CharactersProps) => {
               overItems.length + 1,
             ),
           ],
+        };
+
+        const itemsWithNewPriority = handleNewPriority(sortableResult.B);
+
+        handleCreateFavorites({
+          characters: itemsWithNewPriority,
+          email: String(session?.user?.email),
+        });
+
+        return {
+          ...items,
+          ...sortableResult,
         };
       });
     }
@@ -278,20 +319,24 @@ const Characters = ({ characters }: CharactersProps) => {
   );
 };
 
-export const getServerSideProps: GetServerSideProps = async () => {
-  const chars = await prisma.favorites.findMany({
+export const getServerSideProps: GetServerSideProps = async ({ req }) => {
+  const session = await getSession({ req });
+
+  if (!session?.user) return { props: { characters: [] } };
+
+  const user = await prisma.user.findUnique({ where: { email: String(session.user.email) } });
+  const favorites = await prisma.favorites.findMany({
     where: {
-      userId: 0,
+      userId: user?.id,
+    },
+    include: {
+      char: true,
     },
   });
 
-  if (chars.length) {
-    return {
-      props: {
-        characters: chars,
-      },
-    };
-  }
+  const sortableFavorites = favorites
+  .sort((prevFav, nextFav) => prevFav.priority - nextFav.priority)
+  .map((fav) => fav.char);
 
   const page = Math.floor(Math.random() * 25);
   const { data } = await api.get(CHARACTER.BY_PAGE(page));
@@ -301,6 +346,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
   return {
     props: {
       characters: items,
+      favorites: sortableFavorites,
     },
   };
 };

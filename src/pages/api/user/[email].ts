@@ -11,11 +11,11 @@ export default async function handle(
   request: NextApiRequest,
   response: NextApiResponse,
 ): Promise<void> {
-  const { name, email } = request.body;
+  const { email } = request.query;
 
-  const user = await prisma.user.create({
-    data: { name, email },
+  const user = await prisma.user.findUnique({
+    where: { email: String(email) },
   });
 
-  return response.json({ user });
+  return response.json(user);
 }
