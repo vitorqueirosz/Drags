@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from 'services/prisma';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Character } from 'pages/characters';
