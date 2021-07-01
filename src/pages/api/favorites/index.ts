@@ -21,7 +21,8 @@ export default async function handle(
   newChars.forEach(async ({ id, image, name, priority }) => {
     const charExists = await prisma.char.findFirst({
       where: {
-        charId: id,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        charId: id as any,
       },
     });
 
