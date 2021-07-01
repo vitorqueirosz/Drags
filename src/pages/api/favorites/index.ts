@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from 'services/prisma';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Character } from 'pages/characters';
@@ -21,7 +22,6 @@ export default async function handle(
   newChars.forEach(async ({ id, image, name, priority }) => {
     const charExists = await prisma.char.findFirst({
       where: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         charId: id as any,
       },
     });
@@ -40,7 +40,7 @@ export default async function handle(
             id: hasFavoriteChar.id,
           },
           data: {
-            priority,
+            priority: priority as any,
           },
         });
       }
