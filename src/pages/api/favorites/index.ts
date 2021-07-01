@@ -22,7 +22,7 @@ export default async function handle(
   newChars.forEach(async ({ id, image, name, priority }) => {
     const charExists = await prisma.char.findFirst({
       where: {
-        charId: id as any,
+        charId: id,
       },
     });
 
@@ -40,7 +40,7 @@ export default async function handle(
             id: hasFavoriteChar.id,
           },
           data: {
-            priority: priority as any,
+            priority,
           },
         });
       }
