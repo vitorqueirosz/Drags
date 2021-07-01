@@ -14,11 +14,10 @@ export const SignInForm = () => {
   }, [session?.user, handleCreateUser]);
 
   return (
-    <div className="flex flex-col bg-indigo-800 min-h-screen justify-center items-center gap-8">
-      <div className="flex flex-col items-center bg-indigo-600 rounded-lg">
-        <span>SignUp with Github</span>
+    <div className="flex flex-col bg-indigo-600 min-h-screen justify-center items-center gap-8">
+      <div className="flex flex-col items-center bg-pink-500 rounded-lg p-4">
         <Link href="/api/auth/signin">
-          <a>SignUp</a>
+          <a className="text-white font-medium ">SignUp with Github</a>
         </Link>
       </div>
     </div>
