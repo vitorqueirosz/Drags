@@ -101,5 +101,7 @@ export default async function handle(
     });
   });
 
+  response.setHeader('Cache-control', 'no-cache');
+
   return response.json([]);
 }
